@@ -53,8 +53,8 @@ estrellas = [
 ]
 
 FOG_X       = ANCHO // 2
-FOG_Y       = ALTO  // 2 + 40
-ZONA_Y      = FOG_Y - 10
+FOG_Y       = ALTO  // 2 + 200
+ZONA_Y      = FOG_Y + 5
 ZONA_MARGEN = 240
 PISO_ALTURA = 92
 FOGATA_BASE_SCALE = 0.24
@@ -78,28 +78,28 @@ PISO_CENTRO_Y = FOG_Y
 PISO_SELECTOR_VISIBLE = 6
 PISO_SELECTOR_Y = ALTO - 74
 TURF_NOMBRES = [
-    "Grass Turf",
-    "Grass Turf Alt",
-    "Forest Turf",
+    # "Grass Turf",
+    # "Grass Turf Alt",
+    # "Forest Turf",
     "Marsh Turf",
     "Rocky Turf",
-    "Savanna Turf",
+    # "Savanna Turf",
     "Deciduous Turf",
-    "Sandy Turf",
+    # "Sandy Turf",
     "Wooden Flooring",
     "Checkerboard Flooring",
     "Carpeted Flooring",
     "Moon Crater Turf",
 ]
 TURF_ARCHIVOS = {
-    "Grass Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_grass_noise.png"),
-    "Grass Turf Alt": os.path.join(BASE_DIR, "dst_turfs", "mini_grass2_noise.png"),
-    "Forest Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_forest_noise.png"),
+    # "Grass Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_grass_noise.png"),
+    # "Grass Turf Alt": os.path.join(BASE_DIR, "dst_turfs", "mini_grass2_noise.png"),
+    # "Forest Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_forest_noise.png"),
     "Marsh Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_marsh_noise.png"),
     "Rocky Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_rocky_noise.png"),
-    "Savanna Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_grass2_noise.png"),
+    # "Savanna Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_grass2_noise.png"),
     "Deciduous Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_deciduous_noise.png"),
-    "Sandy Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_desert_dirt_noise.png"),
+    # "Sandy Turf": os.path.join(BASE_DIR, "dst_turfs", "mini_desert_dirt_noise.png"),
     "Wooden Flooring": os.path.join(BASE_DIR, "dst_turfs", "mini_woodfloor_noise.png"),
     "Checkerboard Flooring": os.path.join(BASE_DIR, "dst_turfs", "mini_checker_noise.png"),
     "Carpeted Flooring": os.path.join(BASE_DIR, "dst_turfs", "mini_carpet_noise.png"),
@@ -703,11 +703,11 @@ def generar_superficie_turf(nombre, tamaño):
         x += tile_w
 
     # Frio nocturno base: mantiene la textura real, pero la lleva a una paleta azulada.
-    destino.fill((86, 96, 112, 255), special_flags=pygame.BLEND_RGBA_MULT)
-    destino.fill((18, 20, 24, 0), special_flags=pygame.BLEND_RGBA_SUB)
+    destino.fill((135, 145, 160, 255), special_flags=pygame.BLEND_RGBA_MULT)
+    destino.fill((6, 8, 10, 0), special_flags=pygame.BLEND_RGBA_SUB)
 
     velo = pygame.Surface((ancho, alto), pygame.SRCALPHA)
-    velo.fill((6, 10, 18, 110))
+    velo.fill((8, 12, 18, 28))
     destino.blit(velo, (0, 0))
 
     return destino
@@ -900,6 +900,72 @@ def dibujar_estrellas(surf, t, centro_luz=None, radio_luz=0):
         )
         pygame.draw.circle(surf, c, (ex, ey), 1)
 
+
+# --- Fondo de juego ---
+def dibujar_fondo_juego(surf, t):
+    # Cielo oscuro con degradado sutil.
+    for y in range(ALTO):
+        mezcla = y / ALTO
+        r = int(2 * (1 - mezcla) + 4 * mezcla)
+        g = int(4 * (1 - mezcla) + 7 * mezcla)
+        b = int(12 * (1 - mezcla) + 18 * mezcla)
+        pygame.draw.line(surf, (r, g, b), (0, y), (ANCHO, y))
+
+    # Estrellas discretas en la zona superior.
+    for i in range(75):
+        x = int((i * 137 + 53) % ANCHO)
+        y = int(18 + ((i * 71 + 29) % 205))
+        parpadeo = 0.45 + 0.35 * math.sin(t * 1.35 + i * 0.73)
+        brillo = int(80 + 70 * parpadeo)
+        pygame.draw.circle(surf, (brillo, brillo + 10, min(255, brillo + 24)), (x, y), 1)
+
+    # Montañas altas, pero colocadas más arriba para no invadir el gameplay.
+    montanas_fondo = [
+        (-80, 315), (20, 235), (95, 298), (170, 215), (260, 320),
+        (350, 265), (430, 325), (525, 225), (610, 305), (705, 230),
+        (810, 315), (970, 245), (980, ALTO), (-80, ALTO),
+    ]
+    pygame.draw.polygon(surf, (5, 8, 16), montanas_fondo)
+
+    # Figuras desconocidas como segunda silueta, más cerca que las montañas.
+    figuras = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+    base_y = 360
+    figuras_puntos = [
+        (0, base_y),
+        (35, 335), (48, 295), (60, 335),
+        (95, base_y),
+        (145, 315), (160, 265), (175, 315),
+        (225, base_y),
+        (300, 320), (320, 280), (340, 320),
+        (390, base_y),
+        (470, 310), (485, 248), (500, 310),
+        (560, base_y),
+        (635, 330), (655, 285), (675, 330),
+        (725, base_y),
+        (790, 315), (810, 255), (830, 315),
+        (900, base_y),
+        (900, ALTO), (0, ALTO),
+    ]
+    pygame.draw.polygon(figuras, (3, 5, 11, 230), figuras_puntos)
+
+    # Huecos raros para que no parezcan árboles normales.
+    for x, y, rx, ry in [
+        (160, 292, 8, 16),
+        (485, 282, 7, 18),
+        (810, 292, 9, 17),
+    ]:
+        pygame.draw.ellipse(figuras, (0, 0, 0, 120), (x - rx, y - ry, rx * 2, ry * 2))
+
+    surf.blit(figuras, (0, 0))
+
+    # Niebla baja detrás del área de juego.
+    niebla_fondo = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+    for i in range(7):
+        nx = int((i * 160 + math.sin(t * 0.035 + i) * 70) % (ANCHO + 260)) - 130
+        ny = 360 + int(math.sin(t * 0.06 + i * 0.8) * 16)
+        pygame.draw.ellipse(niebla_fondo, (24, 28, 38, 15), (nx, ny, 300, 65))
+    surf.blit(niebla_fondo, (0, 0))
+
 def dibujar_fogata(surf, cx, cy, t):
     llama_y = cy + FOGATA_LLAMA_OFFSET_Y
     base_dibujada = False
@@ -988,9 +1054,9 @@ def dibujar_pisos(surf):
     piso_base.blit(textura, (0, 0))
 
     # Enfria el bioma completo para que arranque en una paleta nocturna.
-    piso_base.fill((82, 92, 108, 255), special_flags=pygame.BLEND_RGBA_MULT)
+    piso_base.fill((155, 165, 178, 255), special_flags=pygame.BLEND_RGBA_MULT)
     velo_frio = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-    velo_frio.fill((10, 18, 30, 86))
+    velo_frio.fill((8, 12, 18, 14))
     piso_base.blit(velo_frio, (0, 0))
 
     # Capa 1: visibilidad central del bioma alrededor de la fogata.
@@ -1008,10 +1074,10 @@ def dibujar_pisos(surf):
 
     # Capa 3: oscuridad encima que vuelve a cubrir lo que no entra en la luz.
     oscuridad = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-    oscuridad.fill((3, 5, 9, int(118 + 96 * (1.0 - fogata_ratio))))
+    oscuridad.fill((3, 5, 9, int(70 + 58 * (1.0 - fogata_ratio))))
     for paso in range(16, 0, -1):
         t = paso / 16
-        alpha = int((110 + 95 * (1.0 - fogata_ratio)) * ((1.0 - t) ** 1.3))
+        alpha = int((64 + 55 * (1.0 - fogata_ratio)) * ((1.0 - t) ** 1.3))
         hole_rect = pygame.Rect(0, 0, max(2, int(radio_x * 2.15 * t)), max(2, int(radio_y * 1.75 * t)))
         hole_rect.center = (centro_x, centro_y)
         pygame.draw.ellipse(oscuridad, (0, 0, 0, alpha), hole_rect)
@@ -1731,7 +1797,10 @@ while True:
         centro_estrellas = (ANCHO//2, ALTO//2)
         radio_estrellas = 200
 
-    pantalla.fill(NEGRO)
+    if estado == JUGANDO:
+        dibujar_fondo_juego(pantalla, timer)
+    else:
+        pantalla.fill(NEGRO)
 
     if estado==MENU:
         dibujar_estrellas(pantalla,timer,centro_estrellas,radio_estrellas)
