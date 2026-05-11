@@ -20,7 +20,8 @@ reloj = pygame.time.Clock()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AUDIO_DIR = os.path.join(BASE_DIR, "assets_audio")
 MUSIC_DIR = os.path.join(AUDIO_DIR, "music")
-RUTA_SILUETA_FONDO = os.path.join(BASE_DIR, "assets", "fondos", "siluetas_raras.png")
+FONDOS_DIR = os.path.join(BASE_DIR, "assets", "fondos")
+RUTA_SILUETA_FONDO = None
 
 NEGRO     = (  3,   6,  16)
 AZUL_MID  = ( 31,  45,  74)
@@ -42,6 +43,7 @@ fuente_hud    = pygame.font.SysFont("belisa_plumilla", 20)
 fuente_small  = pygame.font.SysFont("belisa_plumilla", 14)
 fuente_grande = pygame.font.SysFont("belisa_plumilla", 48, italic=True)
 
+# Estrellas del menú: no se mueven de lógica, pueden ocupar toda la pantalla.
 estrellas = [
     (
         random.randint(0, ANCHO),
@@ -51,6 +53,18 @@ estrellas = [
         random.uniform(1.1, 2.4),
     )
     for _ in range(120)
+]
+
+# Estrellas del juego: separadas del menú para poder ajustar solo el gameplay.
+estrellas_juego = [
+    (
+        random.randint(0, ANCHO),
+        random.randint(0, int(ALTO * 0.60)),
+        random.uniform(0.35, 0.85),
+        random.uniform(0.0, math.tau),
+        random.uniform(0.8, 1.8),
+    )
+    for _ in range(100)
 ]
 
 FOG_X       = ANCHO // 2
@@ -64,9 +78,19 @@ FOGATA_BASE_OFFSET_Y = -2
 FOGATA_LLAMA_OFFSET_Y = -13
 GARRA_SCALE = 0.22
 WX_SCALE = 0.22
+COFRE_SCALE = 0.19
+ALQUIMIA_SCALE = 0.16
+CROCKPOT_SCALE = 0.20
+REFRI_SCALE = 0.19
 WX_OFFSET_Y = 6
 GARRA_OFFSET_IZQ = (-4, -4)
 GARRA_OFFSET_DER = (5, 5)
+PROPS_CAMPAMENTO_LAYOUT = [
+    ("alquimia", (-170, 2)),
+    ("cofre", (-96, 14)),
+    ("crockpot", (94, 16)),
+    ("refri", (172, 8)),
+]
 SPRITE_SIZES = {
     "leña": (50, 26),
     "carbon": (35,35),
@@ -397,6 +421,10 @@ anim_fogata_llama = None
 anim_garra = None
 anim_wx_idle = None
 anim_wx_run = None
+anim_cofre = None
+anim_alquimia = None
+anim_crockpot = None
+anim_refri = None
 sprites_objetos = {}
 sprites_pisos = []
 silueta_fondo_base = None
@@ -619,16 +647,41 @@ def cargar_sprite_ajustado(ruta, tamaño):
 
 
 def cargar_silueta_fondo():
-    global silueta_fondo_base, silueta_fondo_preparada, silueta_fondo_tamano
+    global silueta_fondo_base, silueta_fondo_preparada, silueta_fondo_tamano, RUTA_SILUETA_FONDO
     silueta_fondo_base = None
     silueta_fondo_preparada = None
     silueta_fondo_tamano = None
-    if not os.path.exists(RUTA_SILUETA_FONDO):
+    RUTA_SILUETA_FONDO = None
+
+    if not os.path.isdir(FONDOS_DIR):
+        print(f"No existe la carpeta de fondos: {FONDOS_DIR}")
         return
-    try:
-        silueta_fondo_base = pygame.image.load(RUTA_SILUETA_FONDO).convert_alpha()
-    except pygame.error as exc:
-        print(f"No se pudo cargar la silueta de fondo: {exc}")
+
+    extensiones_validas = (".png", ".jpg", ".jpeg")
+    rutas_candidatas = [
+        os.path.join(FONDOS_DIR, nombre)
+        for nombre in os.listdir(FONDOS_DIR)
+        if nombre.lower().endswith(extensiones_validas)
+        and (nombre.lower().startswith("silueta_") or nombre.lower().startswith("siluetas_"))
+    ]
+
+    if not rutas_candidatas:
+        print(f"No se encontró ninguna silueta en: {FONDOS_DIR}")
+        return
+
+    rutas_candidatas.sort(key=natural_key)
+    random.shuffle(rutas_candidatas)
+
+    for ruta in rutas_candidatas:
+        try:
+            silueta_fondo_base = pygame.image.load(ruta).convert_alpha()
+            RUTA_SILUETA_FONDO = ruta
+            print(f"Silueta cargada: {os.path.basename(ruta)}")
+            return
+        except pygame.error as exc:
+            print(f"Silueta ignorada: {os.path.basename(ruta)} ({exc})")
+
+    print(f"No se pudo cargar ninguna silueta válida en: {FONDOS_DIR}")
 
 
 def obtener_silueta_fondo():
@@ -643,7 +696,13 @@ def obtener_silueta_fondo():
 
     if silueta_fondo_preparada is None or silueta_fondo_tamano != tamaño_objetivo:
         silueta = pygame.transform.smoothscale(silueta_fondo_base, tamaño_objetivo)
-        silueta.set_alpha(190)
+
+        # Aclara la silueta sin destruir su transparencia.
+        # BLEND_RGBA_ADD sube el valor visual; MULT la oscurecía todavía más.
+        silueta.fill((24,17,27, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        # Más opaca para que no se pierda contra el cielo.
+        silueta.set_alpha(230)
         silueta_fondo_preparada = silueta
         silueta_fondo_tamano = tamaño_objetivo
 
@@ -848,18 +907,27 @@ def rects_selector_turfs():
 
 def cargar_animaciones():
     global anim_fogata_base, anim_fogata_llama, anim_garra, anim_wx_idle, anim_wx_run
+    global anim_cofre, anim_alquimia, anim_crockpot, anim_refri
     global sprites_objetos, sprites_pisos
 
     ruta_base = os.path.join(BASE_DIR, "dst_extract", "firepit", "firepit.scml")
     ruta_llama = os.path.join(BASE_DIR, "dst_extract", "campfire_fire", "campfire_fire.scml")
     ruta_garra = os.path.join(BASE_DIR, "dst_extract", "creepy_hands", "creepy_hands.scml")
     ruta_wx = os.path.join(BASE_DIR, "dst_extract", "wx78", "wx78.scml")
+    ruta_cofre = os.path.join(BASE_DIR, "dst_extract", "treasure_chest", "treasure_chest.scml")
+    ruta_alquimia = os.path.join(BASE_DIR, "dst_extract", "researchlab2", "researchlab2.scml")
+    ruta_crockpot = os.path.join(BASE_DIR, "dst_extract", "cook_pot", "cook_pot.scml")
+    ruta_refri = os.path.join(BASE_DIR, "dst_extract", "ice_box", "ice_box.scml")
 
     anim_fogata_base = None
     anim_fogata_llama = None
     anim_garra = None
     anim_wx_idle = None
     anim_wx_run = None
+    anim_cofre = None
+    anim_alquimia = None
+    anim_crockpot = None
+    anim_refri = None
     sprites_objetos = {}
     cargar_silueta_fondo()
 
@@ -887,6 +955,30 @@ def cargar_animaciones():
             anim_wx_run = ScmlAnimation(ruta_wx, "run_loop_side", scale=WX_SCALE)
         except Exception as exc:
             print(f"No se pudo cargar la animacion de WX-78: {exc}")
+
+    if os.path.exists(ruta_cofre):
+        try:
+            anim_cofre = ScmlAnimation(ruta_cofre, "closed", scale=COFRE_SCALE)
+        except Exception as exc:
+            print(f"No se pudo cargar el cofre: {exc}")
+
+    if os.path.exists(ruta_alquimia):
+        try:
+            anim_alquimia = ScmlAnimation(ruta_alquimia, "idle", scale=ALQUIMIA_SCALE)
+        except Exception as exc:
+            print(f"No se pudo cargar la maquina de alquimia: {exc}")
+
+    if os.path.exists(ruta_crockpot):
+        try:
+            anim_crockpot = ScmlAnimation(ruta_crockpot, "idle_empty", scale=CROCKPOT_SCALE)
+        except Exception as exc:
+            print(f"No se pudo cargar la crockpot: {exc}")
+
+    if os.path.exists(ruta_refri):
+        try:
+            anim_refri = ScmlAnimation(ruta_refri, "closed", scale=REFRI_SCALE)
+        except Exception as exc:
+            print(f"No se pudo cargar el refri: {exc}")
 
     sprites_objetos["leña"] = cargar_sprite_ajustado(
         os.path.join(BASE_DIR, "dst_extract", "log", "log01", "log01-0.png"),
@@ -917,9 +1009,12 @@ def cargar_animaciones():
     crear_tablero_pisos()
 
 
-def dibujar_estrellas(surf, t, centro_luz=None, radio_luz=0):
+def dibujar_estrellas(surf, t, centro_luz=None, radio_luz=0, lista_estrellas=None):
     radio_sq = radio_luz * radio_luz
-    for (ex, ey, brillo_base, fase, velocidad) in estrellas:
+    if lista_estrellas is None:
+        lista_estrellas = estrellas
+
+    for (ex, ey, brillo_base, fase, velocidad) in lista_estrellas:
         if centro_luz is not None:
             dx = ex - centro_luz[0]
             dy = ey - centro_luz[1]
@@ -943,32 +1038,52 @@ def dibujar_fondo_juego(surf, t):
     # Cielo oscuro con degradado sutil.
     for y in range(ALTO):
         mezcla = y / ALTO
-        r = int(2 * (1 - mezcla) + 4 * mezcla)
-        g = int(4 * (1 - mezcla) + 7 * mezcla)
-        b = int(12 * (1 - mezcla) + 18 * mezcla)
+
+        # Mantiene el fondo inferior oscuro como antes,
+        # pero aclara ligeramente la parte superior del cielo.
+        top_mix = min(1.0, mezcla ** 1.35 * 1.35)
+
+        r = int(10 * (1 - top_mix) + 4 * top_mix)
+        g = int(16 * (1 - top_mix) + 7 * top_mix)
+        b = int(34 * (1 - top_mix) + 18 * top_mix)
+
         pygame.draw.line(surf, (r, g, b), (0, y), (ANCHO, y))
 
-    # Estrellas discretas en la zona superior.
-    for i in range(75):
-        x = int((i * 137 + 53) % ANCHO)
-        y = int(18 + ((i * 71 + 29) % 205))
-        parpadeo = 0.45 + 0.35 * math.sin(t * 1.35 + i * 0.73)
-        brillo = int(80 + 70 * parpadeo)
-        pygame.draw.circle(surf, (brillo, brillo + 10, min(255, brillo + 24)), (x, y), 1)
+    # Banda de cielo un poco más clara detrás de las montañas para mejorar lectura.
+    velo_cielo = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+    inicio_claro = 120
+    fin_claro =  400
+    rango_claro = fin_claro - inicio_claro
+    for y in range(inicio_claro, fin_claro):
+        progreso = (y - inicio_claro) / rango_claro
+        campana = math.sin(progreso * math.pi)
+        alpha = int(20 * campana)
+        tono = (
+            int(18 + 8 * campana),
+            int(24 + 10 * campana),
+            int(36 + 14 * campana),
+            alpha,
+        )
+        pygame.draw.line(velo_cielo, tono, (0, y), (ANCHO, y))
+    surf.blit(velo_cielo, (0, 0))
+
+    # Usa las estrellas globales animadas también durante el gameplay.
+    dibujar_estrellas(surf, t, lista_estrellas=estrellas_juego)
 
     # Siluetas PNG sutiles y oscuras, con un parallax lento para dar vida al fondo.
     silueta = obtener_silueta_fondo()
     if silueta is not None:
-        silueta_y = 225
+        silueta_y = 210
         tile_w = silueta.get_width()
-        offset_x = int(math.sin(t * 0.025) * 10)
-        inicio_x = offset_x - tile_w
-        while inicio_x + tile_w < 0:
-            inicio_x += tile_w
+        solape = 28
+        paso_tile = max(1, tile_w - solape)
+        offset_x = 0
+        inicio_x = -paso_tile
+
         x = inicio_x
-        while x < ANCHO:
+        while x < ANCHO + paso_tile:
             surf.blit(silueta, (x, silueta_y))
-            x += tile_w
+            x += paso_tile
 
     # Niebla baja detrás del área de juego.
     niebla_fondo = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
@@ -1009,6 +1124,19 @@ def dibujar_fogata(surf, cx, cy, t):
         pts = [(cx+ondeo,llama_y-ry*2+off),(cx+rx,llama_y-ry+off),
                (cx+rx*.5,llama_y+off),(cx-rx*.5,llama_y+off),(cx-rx,llama_y-ry+off)]
         pygame.draw.polygon(surf,color,pts)
+
+
+def dibujar_props_campamento(surf, cx, cy, t):
+    animaciones = {
+        "cofre": anim_cofre,
+        "alquimia": anim_alquimia,
+        "crockpot": anim_crockpot,
+        "refri": anim_refri,
+    }
+    for nombre, (offset_x, offset_y) in PROPS_CAMPAMENTO_LAYOUT:
+        anim = animaciones.get(nombre)
+        if anim is not None:
+            anim.dibujar(surf, cx + offset_x, cy + offset_y, t)
 
 
 def dibujar_pisos(surf):
@@ -1801,7 +1929,7 @@ while True:
         radio_estrellas = 160
     elif estado==JUGANDO:
         centro_estrellas = (FOG_X, FOG_Y)
-        radio_estrellas = int(80+(fogata/fogata_max)*140)
+        radio_estrellas = int(45 + (fogata / fogata_max) * 90)
     elif estado==GAME_OVER:
         centro_estrellas = (ANCHO//2, ALTO//2)
         radio_estrellas = 40
@@ -1854,6 +1982,7 @@ while True:
             velo.fill((18, 28, 46, 12))
             pantalla.blit(velo,(0,0))
         dibujar_pisos(pantalla)
+        dibujar_props_campamento(pantalla, FOG_X, FOG_Y, timer)
         dibujar_fogata(pantalla,FOG_X,FOG_Y,timer)
         for obj in objetos: obj.dibujar(pantalla)
         for g   in garras:  g.dibujar(pantalla)
