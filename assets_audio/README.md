@@ -16,5 +16,6 @@
 - `rain/rain_hit_147.wav` a `rain/rain_hit_150.wav`: impacto húmedo cuando la lluvia daña a WX-78
 - `rain/rain_spark_1087.wav` a `rain/rain_spark_1089.wav`: chispa metálica para reforzar el daño de lluvia sobre WX-78
 - `music/menu_theme.wav`: `DST_Theme_Loop`, música principal del menú
-- `music/insanity_loop.wav`: `sanity_loop1`, música de locura para la partida
+- `music/insanity_loop.wav`: `sanity_loop1`, pista antigua de locura
+- `music/dst_battle_loop.wav`: `DST_Triggered_event_Fight_A_V2`, música de pelea usada por defecto durante la partida
 - `music/menu_wx.wav`: `DS_WX78 Theme 112bpm`, variante extraída de WX-78

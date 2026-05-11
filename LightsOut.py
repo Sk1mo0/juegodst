@@ -83,6 +83,7 @@ ALQUIMIA_SCALE = 0.16
 CROCKPOT_SCALE = 0.20
 REFRI_SCALE = 0.19
 WX_OFFSET_Y = 6
+CAPACIDAD_CARGA_WX = 3
 GARRA_OFFSET_IZQ = (-4, -4)
 GARRA_OFFSET_DER = (5, 5)
 PROPS_CAMPAMENTO_LAYOUT = [
@@ -474,7 +475,7 @@ def cargar_audio():
             "lluvia": pygame.mixer.Channel(4),
         }
         ruta_musica_menu = os.path.join(MUSIC_DIR, "menu_theme.wav")
-        ruta_musica_juego = os.path.join(MUSIC_DIR, "insanity_loop.wav")
+        ruta_musica_juego = os.path.join(MUSIC_DIR,  "dst_battle_loop.wav")
         if os.path.exists(ruta_musica_menu):
             musicas["menu"] = ruta_musica_menu
         if os.path.exists(ruta_musica_juego):
@@ -1167,8 +1168,8 @@ def dibujar_pisos(surf):
     centro_sombra_y = FOG_Y - sombra_rect.y + 6
 
     halo_piso = sombra_base.copy()
-    radio_x_halo = max(1, int(rect.w * (0.11 + 0.32 * fogata_ratio)))
-    radio_y_halo = max(1, int(rect.h * (0.34 + 0.31 * fogata_ratio)))
+    radio_x_halo = max(1, int(rect.w * (0.01 + 0.32 * fogata_ratio)))
+    radio_y_halo = max(1, int(rect.h * (0.23 + 0.31 * fogata_ratio)))
     halo_frio = pygame.Surface(halo_piso.get_size(), pygame.SRCALPHA)
     for paso in range(26, 0, -1):
         t = paso / 26
@@ -1184,7 +1185,7 @@ def dibujar_pisos(surf):
         alpha = int((3 + 10 * fogata_ratio) * (t ** 3.4))
         ovalo = pygame.Rect(0, 0, max(2, int(radio_x_halo * 1.95 * t)), max(2, int(radio_y_halo * 1.55 * t)))
         ovalo.center = (centro_sombra_x, centro_sombra_y + 2)
-        pygame.draw.ellipse(halo_calido, (184, 148, 88, alpha), ovalo)
+        pygame.draw.ellipse(halo_calido, (110, 120, 140, alpha), ovalo)
     halo_piso.blit(halo_calido, (0, 0))
     surf.blit(halo_piso, sombra_rect)
 
@@ -1322,6 +1323,7 @@ class WX78:
         self.direccion  = 1
         self.moviendo   = False
         self.descarga_lluvia = 0.0
+        self.item_cargado = []
 
     def mover(self,keys,dt):
         self.moviendo = False
@@ -1348,6 +1350,20 @@ class WX78:
         self.descarga_lluvia = max(self.descarga_lluvia, duracion)
 
     def rect(self): return pygame.Rect(self.x,self.y,self.w,self.h)
+
+    def puede_cargar_recurso(self):
+        return len(self.item_cargado) < CAPACIDAD_CARGA_WX
+
+    def cargar_recurso(self, tipo):
+        if not self.puede_cargar_recurso():
+            return False
+        self.item_cargado.append(tipo)
+        return True
+
+    def descargar_recursos(self):
+        recursos = self.item_cargado[:]
+        self.item_cargado.clear()
+        return recursos
 
     def dibujar(self,surf,t):
         anim = None
@@ -1661,6 +1677,25 @@ def cambiar_dificultad(delta):
 def agregar_msg(texto,x,y,color=LUNA):
     mensajes.append([texto,float(x),float(y),1.2,color])
 
+
+def rect_fogata_colision():
+    return pygame.Rect(FOG_X - 30, FOG_Y - 30, 60, 60)
+
+
+def aplicar_recurso_fogata(tipo, x, y):
+    global fogata, puntaje
+    if tipo=="leña":
+        fogata=min(fogata_max,fogata+25); puntaje+=10
+        reproducir_sonido("fogata_leña")
+        agregar_msg("+25 🔥",x,y,NARANJA)
+        return True
+    if tipo=="carbon":
+        fogata=min(fogata_max,fogata+40); puntaje+=20
+        reproducir_sonido("fogata_carbon")
+        agregar_msg("+40 🔥",x,y,AMBAR)
+        return True
+    return False
+
 def iniciar_juego(endless):
     global wx,objetos,garras,sombras,fogata,fogata_max,puntaje,nivel,mensajes
     global spawn_timer,spawn_intervalo,garra_timer,garra_intervalo
@@ -1743,7 +1778,7 @@ while True:
 
     if estado==JUGANDO:
         config = config_dificultad()
-        reproducir_musica("juego", 0.26)
+        reproducir_musica("juego", 0.85)
         keys=pygame.key.get_pressed()
         wx.mover(keys,dt)
         wx.tick(dt)
@@ -1769,6 +1804,12 @@ while True:
         if wx.moviendo and wx.aturdido <= 0 and pasos_wx_timer <= 0:
             reproducir_pasos_wx()
             pasos_wx_timer = 0.05 if wx.turbo > 0 else 0.1
+
+        fog_rect = rect_fogata_colision()
+        if wx.rect().colliderect(fog_rect) and wx.item_cargado:
+            recursos_entregados = wx.descargar_recursos()
+            for recurso in recursos_entregados:
+                aplicar_recurso_fogata(recurso, FOG_X, FOG_Y - 40)
 
         if lluvia_activa():
             reproducir_loop("lluvia_loop", "lluvia")
@@ -1818,24 +1859,25 @@ while True:
             obj.actualizar(dt)
             if obj.rect().colliderect(wx.rect()):
                 if obj.tipo=="leña":
-                    fogata=min(fogata_max,fogata+25); puntaje+=10
-                    reproducir_sonido("fogata_leña")
-                    agregar_msg("+25 🔥",obj.x,obj.y,NARANJA)
+                    if wx.cargar_recurso("leña"):
+                        agregar_msg(f"Leña {len(wx.item_cargado)}/{CAPACIDAD_CARGA_WX}",obj.x,obj.y,NARANJA)
+                        objetos.remove(obj)
                 elif obj.tipo=="carbon":
-                    fogata=min(fogata_max,fogata+40); puntaje+=20
-                    reproducir_sonido("fogata_carbon")
-                    agregar_msg("+40 🔥",obj.x,obj.y,AMBAR)
+                    if wx.cargar_recurso("carbon"):
+                        agregar_msg(f"Carbon {len(wx.item_cargado)}/{CAPACIDAD_CARGA_WX}",obj.x,obj.y,AMBAR)
+                        objetos.remove(obj)
                 elif obj.tipo=="engrane":
                     wx.vida=min(wx.vida_max,wx.vida+25); puntaje+=15
                     reproducir_engrane_wx()
                     agregar_msg("+25 ❤",obj.x,obj.y,VERDE)
+                    objetos.remove(obj)
                 elif obj.tipo=="rayo":
                     wx.turbo=4.0
                     wx.invencible=4.0
                     puntaje+=10
                     agregar_msg("⚡ TURBO + INVENCIBLE",obj.x,obj.y,ELECTRICO)
                     agregar_msg("⚡ TURBO",obj.x,obj.y,ELECTRICO)
-                objetos.remove(obj)
+                    objetos.remove(obj)
             elif obj.fuera():
                 objetos.remove(obj)
 
@@ -1877,7 +1919,6 @@ while True:
                 sombras.remove(s)
                 continue
             # llega a la fogata
-            fog_rect=pygame.Rect(FOG_X-30,FOG_Y-30,60,60)
             if s.rect().colliderect(fog_rect):
                 fogata=max(0,fogata-s.daño_fogata)
                 agregar_msg(f"-{s.daño_fogata} 🔥",FOG_X,FOG_Y-40,(220,80,80))
@@ -1998,6 +2039,15 @@ while True:
         dibujar_barra(pantalla,20,76,200,16,wx.vida,wx.vida_max,(80,180,100),"❤ VIDA")
         if wx.turbo>0:
             dibujar_barra(pantalla,20,116,200,10,wx.turbo,4.0,ELECTRICO,"⚡ TURBO")
+        carga_y = 142 if wx.turbo > 0 else 116
+        carga_texto = ", ".join(wx.item_cargado) if wx.item_cargado else "vacia"
+        carga_color = LUNA if wx.item_cargado else GRIS_AZUL
+        carga = fuente_small.render(
+            f"Carga {len(wx.item_cargado)}/{CAPACIDAD_CARGA_WX}: {carga_texto}",
+            True,
+            carga_color,
+        )
+        pantalla.blit(carga,(20,carga_y))
         pts=fuente_hud.render(f"Puntos: {puntaje}",True,LUNA)
         pantalla.blit(pts,(ANCHO-pts.get_width()-20,20))
         dif=fuente_small.render(f"Dificultad: {dificultad_actual}",True,GRIS_AZUL)
