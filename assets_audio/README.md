@@ -1,0 +1,20 @@
+# Audio DST usado en Lights Out
+
+- `HUD_craft_close.wav`: mover selección en el menú
+- `Map_close.wav`: aceptar opción en el menú
+- `charlie_warn_1.wav` a `charlie_warn_4.wav`: aviso cuando aparecen las manos
+- `charlie_bite.wav`: mordida/impacto de Charlie sobre la fogata
+- `sanity_random_pulse_8.wav` a `sanity_random_pulse_13.wav`: pulsos de locura
+- `foley_metalArmour_4.wav` a `foley_metalArmour_6.wav`: golpe general actual de WX-78
+- `hit_response_sanitycreature_1.wav` y `hit_response_sanitycreature_2.wav`: golpe de sombra a WX-78
+- `pickups/wood_fuel.wav`: sonido al agregar leña a la fogata (`Fire_addFuelFlare`)
+- `pickups/charcoal_fuel.wav`: sonido al agregar carbón a la fogata (`add_nightmarefuel`)
+- `pickups/wx_eat_gear.wav`: sonido al consumir engranes con WX-78
+- `wx_steps/footstep_grass_1.wav` a `wx_steps/footstep_grass_4.wav`: pasos de pasto originales de DST extraídos de `sfx.fsb`
+- `campfire/campfire_layer2_LP.wav`, `campfire/campfire_layer3_1_LP.wav` y `campfire/campfire_layer3_3_LP.wav`: mezcla principal actual de la fogata
+- `rain/rain_loop.wav`: loop de lluvia fuerte usado desde la noche de lluvia
+- `rain/rain_hit_147.wav` a `rain/rain_hit_150.wav`: impacto húmedo cuando la lluvia daña a WX-78
+- `rain/rain_spark_1087.wav` a `rain/rain_spark_1089.wav`: chispa metálica para reforzar el daño de lluvia sobre WX-78
+- `music/menu_theme.wav`: `DST_Theme_Loop`, música principal del menú
+- `music/insanity_loop.wav`: `sanity_loop1`, música de locura para la partida
+- `music/menu_wx.wav`: `DS_WX78 Theme 112bpm`, variante extraída de WX-78
