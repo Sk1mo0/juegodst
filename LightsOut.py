@@ -20,6 +20,7 @@ reloj = pygame.time.Clock()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AUDIO_DIR = os.path.join(BASE_DIR, "assets_audio")
 MUSIC_DIR = os.path.join(AUDIO_DIR, "music")
+RUTA_SILUETA_FONDO = os.path.join(BASE_DIR, "assets", "fondos", "siluetas_raras.png")
 
 NEGRO     = (  3,   6,  16)
 AZUL_MID  = ( 31,  45,  74)
@@ -398,6 +399,9 @@ anim_wx_idle = None
 anim_wx_run = None
 sprites_objetos = {}
 sprites_pisos = []
+silueta_fondo_base = None
+silueta_fondo_preparada = None
+silueta_fondo_tamano = None
 tablero_pisos = []
 turf_seleccionado_idx = 0
 turf_cache = {}
@@ -614,6 +618,38 @@ def cargar_sprite_ajustado(ruta, tamaño):
     return pygame.transform.smoothscale(sprite, (ancho, alto))
 
 
+def cargar_silueta_fondo():
+    global silueta_fondo_base, silueta_fondo_preparada, silueta_fondo_tamano
+    silueta_fondo_base = None
+    silueta_fondo_preparada = None
+    silueta_fondo_tamano = None
+    if not os.path.exists(RUTA_SILUETA_FONDO):
+        return
+    try:
+        silueta_fondo_base = pygame.image.load(RUTA_SILUETA_FONDO).convert_alpha()
+    except pygame.error as exc:
+        print(f"No se pudo cargar la silueta de fondo: {exc}")
+
+
+def obtener_silueta_fondo():
+    global silueta_fondo_preparada, silueta_fondo_tamano
+    if silueta_fondo_base is None:
+        return None
+
+    alto_objetivo = 190
+    factor = alto_objetivo / silueta_fondo_base.get_height()
+    ancho_objetivo = max(1, int(round(silueta_fondo_base.get_width() * factor)))
+    tamaño_objetivo = (ancho_objetivo, alto_objetivo)
+
+    if silueta_fondo_preparada is None or silueta_fondo_tamano != tamaño_objetivo:
+        silueta = pygame.transform.smoothscale(silueta_fondo_base, tamaño_objetivo)
+        silueta.set_alpha(190)
+        silueta_fondo_preparada = silueta
+        silueta_fondo_tamano = tamaño_objetivo
+
+    return silueta_fondo_preparada
+
+
 def natural_key(texto):
     return [int(parte) if parte.isdigit() else parte.lower() for parte in re.split(r"(\d+)", texto)]
 
@@ -825,6 +861,7 @@ def cargar_animaciones():
     anim_wx_idle = None
     anim_wx_run = None
     sprites_objetos = {}
+    cargar_silueta_fondo()
 
     if os.path.exists(ruta_base):
         try:
@@ -919,44 +956,19 @@ def dibujar_fondo_juego(surf, t):
         brillo = int(80 + 70 * parpadeo)
         pygame.draw.circle(surf, (brillo, brillo + 10, min(255, brillo + 24)), (x, y), 1)
 
-    # Montañas altas, pero colocadas más arriba para no invadir el gameplay.
-    montanas_fondo = [
-        (-80, 315), (20, 235), (95, 298), (170, 215), (260, 320),
-        (350, 265), (430, 325), (525, 225), (610, 305), (705, 230),
-        (810, 315), (970, 245), (980, ALTO), (-80, ALTO),
-    ]
-    pygame.draw.polygon(surf, (5, 8, 16), montanas_fondo)
-
-    # Figuras desconocidas como segunda silueta, más cerca que las montañas.
-    figuras = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
-    base_y = 360
-    figuras_puntos = [
-        (0, base_y),
-        (35, 335), (48, 295), (60, 335),
-        (95, base_y),
-        (145, 315), (160, 265), (175, 315),
-        (225, base_y),
-        (300, 320), (320, 280), (340, 320),
-        (390, base_y),
-        (470, 310), (485, 248), (500, 310),
-        (560, base_y),
-        (635, 330), (655, 285), (675, 330),
-        (725, base_y),
-        (790, 315), (810, 255), (830, 315),
-        (900, base_y),
-        (900, ALTO), (0, ALTO),
-    ]
-    pygame.draw.polygon(figuras, (3, 5, 11, 230), figuras_puntos)
-
-    # Huecos raros para que no parezcan árboles normales.
-    for x, y, rx, ry in [
-        (160, 292, 8, 16),
-        (485, 282, 7, 18),
-        (810, 292, 9, 17),
-    ]:
-        pygame.draw.ellipse(figuras, (0, 0, 0, 120), (x - rx, y - ry, rx * 2, ry * 2))
-
-    surf.blit(figuras, (0, 0))
+    # Siluetas PNG sutiles y oscuras, con un parallax lento para dar vida al fondo.
+    silueta = obtener_silueta_fondo()
+    if silueta is not None:
+        silueta_y = 225
+        tile_w = silueta.get_width()
+        offset_x = int(math.sin(t * 0.025) * 10)
+        inicio_x = offset_x - tile_w
+        while inicio_x + tile_w < 0:
+            inicio_x += tile_w
+        x = inicio_x
+        while x < ANCHO:
+            surf.blit(silueta, (x, silueta_y))
+            x += tile_w
 
     # Niebla baja detrás del área de juego.
     niebla_fondo = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
